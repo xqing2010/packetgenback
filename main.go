@@ -50,6 +50,57 @@ func clearDir(path string) {
 	}
 }
 
+func genAutoGenPrefix() error {
+	filename := *outputDir + "/" + "MsgID.h"
+	var buff bytes.Buffer
+	file, err := os.Create(filename)
+	if nil != err {
+		return err
+	}
+	buff.WriteString("#pragma once\n\n")
+	buff.WriteString("enum E_MSGID {\n")
+	buff.WriteString("\tMSGID_INVALID = -1,\n")
+	buff.WriteString("\t// begin auto gen Id-----\n")
+	file.WriteString(buff.String())
+	file.Close()
+
+	filename = *outputDir + "/" + "MessageIdHelper.h"
+	file, err = os.Create(filename)
+	if nil != err {
+		return err
+	}
+	buff.Reset()
+	buff.WriteString("#pragma once\n")
+	buff.WriteString("#include \"MsgID.h\"\n\n")
+	buff.WriteString("#include \"PBMessage.pb.h\"\n\n")
+	buff.WriteString("template<typename T>\n")
+	buff.WriteString("class MessageHelper {\n")
+	buff.WriteString("public:\n")
+	buff.WriteString("\tenum  {\n")
+	buff.WriteString("\t\tId = MSGID_INVALID,\n")
+	buff.WriteString("\t};\n")
+	buff.WriteString("};\n\n")
+	file.WriteString(buff.String())
+	file.Close()
+
+	return nil
+}
+
+func genAutoGenSuffix() error {
+	filename := *outputDir + "/" + "MsgID.h"
+	file, err := os.OpenFile(filename, os.O_APPEND, os.ModePerm)
+	if nil != err {
+		return err
+	}
+	var buff bytes.Buffer
+	buff.WriteString("\t// end-----\n")
+	buff.WriteString("\tMSGID_MAX_SIZE,\n")
+	buff.WriteString("};\n")
+	file.WriteString(buff.String())
+
+	return nil
+}
+
 func AutoConvert() error {
 	/*	dirName := *inputDir
 		//dirName = "F:/tmp"
@@ -58,23 +109,13 @@ func AutoConvert() error {
 			fmt.Println(err)
 		}
 		var buff bytes.Buffer
-		for _, finfo := range files {
-			pathname := dirName + "/" + finfo.Name()
-			datas, err := ioutil.ReadFile(pathname)
-			if nil != err {
-				fmt.Println(err)
-			}
-			buff.Reset()
-			buff.Write(datas)
-			str := buff.String()
-			fileGen(str, finfo.Name())
-		}
+
 	*/
 	var buff bytes.Buffer
 
 	pathname := *inputDir
 
-	datas, err := ioutil.ReadFile(pathname)
+	files, err := ioutil.ReadDir(pathname)
 	if nil != err {
 		fmt.Println(err)
 	}
@@ -89,10 +130,19 @@ func AutoConvert() error {
 		clearDir(*outputDir)
 	}
 
-	buff.Reset()
-	buff.Write(datas)
-	str := buff.String()
-	fileGen(str, "")
+	genAutoGenPrefix()
+	for _, finfo := range files {
+		pathname := pathname + "/" + finfo.Name()
+		datas, err := ioutil.ReadFile(pathname)
+		if nil != err {
+			fmt.Println(err)
+		}
+		buff.Reset()
+		buff.Write(datas)
+		str := buff.String()
+		fileGen(str, finfo.Name())
+	}
+	genAutoGenSuffix()
 	return err
 }
 
@@ -136,18 +186,9 @@ func genMessageId(messages []string) error {
 
 	var buff bytes.Buffer
 
-	file, err := os.Open(filename)
-	isNewFile := false
+	file, err := os.OpenFile(filename, os.O_APPEND, os.ModePerm)
 	if nil != err {
-		file, err = os.Create(filename)
-		if nil != err {
-			return err
-		}
-		isNewFile = true
-		buff.WriteString("#pragma once\n\n")
-		buff.WriteString("enum E_MSGID {\n")
-		buff.WriteString("\tMSGID_INVALID = -1,\n")
-		buff.WriteString("\t// begin auto gen Id-----\n")
+		return err
 	}
 
 	defer file.Close()
@@ -155,9 +196,6 @@ func genMessageId(messages []string) error {
 	for _, message := range messages {
 		buff.WriteString("\t" + getMessageId(message) + ",\n")
 	}
-	buff.WriteString("\t// end-----\n")
-	buff.WriteString("\tMSGID_MAX_SIZE,\n")
-	buff.WriteString("};\n")
 
 	file.WriteString(buff.String())
 	return nil
@@ -165,24 +203,13 @@ func genMessageId(messages []string) error {
 
 func genMessageIdHelper(messages []string) error {
 	filename := *outputDir + "/" + "MessageIdHelper.h"
-	file, err := os.Create(filename)
+	file, err := os.OpenFile(filename, os.O_APPEND, os.ModePerm)
 	if nil != err {
 		return err
 	}
 	defer file.Close()
 
 	var buff bytes.Buffer
-	buff.WriteString("#pragma once\n")
-	buff.WriteString("#include \"MsgID.h\"\n\n")
-	buff.WriteString("#include \"PBMessage.pb.h\"\n\n")
-
-	buff.WriteString("template<typename T>\n")
-	buff.WriteString("class MessageHelper {\n")
-	buff.WriteString("public:\n")
-	buff.WriteString("\tenum  {\n")
-	buff.WriteString("\t\tId = MSGID_INVALID,\n")
-	buff.WriteString("\t};\n")
-	buff.WriteString("};\n\n")
 
 	for _, messageName := range messages {
 		buff.WriteString("template<>\n")
@@ -219,9 +246,12 @@ func isExport(message string) bool {
 
 func genRegisterPacket(messages []string) error {
 	filename := *outputDir + "/" + "register.inl"
-	file, err := os.Create(filename)
+	file, err := os.OpenFile(filename, os.O_APPEND, os.ModePerm)
 	if nil != err {
-		return err
+		file, err = os.Create(filename)
+		if nil != err {
+			return err
+		}
 	}
 	defer file.Close()
 
@@ -241,9 +271,12 @@ func genRegisterPacket(messages []string) error {
 
 func genHandlerDeclare(messages []string) error {
 	filename := *outputDir + "/" + "handlerdeclare.inl"
-	file, err := os.Create(filename)
+	file, err := os.OpenFile(filename, os.O_APPEND, os.ModePerm)
 	if nil != err {
-		return err
+		file, err = os.Create(filename)
+		if nil != err {
+			return err
+		}
 	}
 	defer file.Close()
 
@@ -297,9 +330,10 @@ func main() {
 
 	flag.Parse()
 
-	//*inputDir = "F:\\project_modify\\server\\ClothesChange_Common\\proto\\input"
-	//*outputDir = "F:\\project_modify\\server\\ClothesChange_Common\\proto\\out"
-	dir, _ := filepath.Abs(os.Args[0])
+	*inputDir = "F:\\project_modify\\server\\ClothesChange_Common\\proto\\input"
+	*outputDir = "F:\\project_modify\\server\\ClothesChange_Common\\proto\\out"
+
+	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
 	if false == strings.Contains(*inputDir, dir) {
 		*inputDir = dir + *inputDir
