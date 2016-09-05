@@ -71,13 +71,13 @@ func genAutoGenPrefix() error {
 	}
 	buff.Reset()
 	buff.WriteString("#pragma once\n")
-	buff.WriteString("#include \"MsgID.h\"\n\n")
-	buff.WriteString("#include \"PBMessage.pb.h\"\n\n")
+	buff.WriteString("#include \"PBMessage.pb.h\"\n")
+	buff.WriteString("#include \"AutoGen/PBMsgId.pb.h\"\n\n")
 	buff.WriteString("template<typename T>\n")
 	buff.WriteString("class MessageHelper {\n")
 	buff.WriteString("public:\n")
 	buff.WriteString("\tenum  {\n")
-	buff.WriteString("\t\tId = MSGID_INVALID,\n")
+	buff.WriteString("\t\tId = -1,\n")
 	buff.WriteString("\t};\n")
 	buff.WriteString("};\n\n")
 	file.WriteString(buff.String())
@@ -166,10 +166,11 @@ func fileGen(content, filename string) error {
 	}
 
 	genMessageIdHelper(messages)
-	genMessageId(messages)
+	//genMessageId(messages)
 	genRegisterPacket(messages)
 	genHandlerDeclare(messages)
 	genMsgIdMap(messages)
+
 	return nil
 }
 
@@ -212,13 +213,17 @@ func genMessageIdHelper(messages []string) error {
 	var buff bytes.Buffer
 
 	for _, messageName := range messages {
-		buff.WriteString("template<>\n")
-		buff.WriteString("class MessageHelper<" + messageName + "> {\n")
-		buff.WriteString("public:\n")
-		buff.WriteString("\tenum  {\n")
-		buff.WriteString("\t\tId = " + getMessageId(messageName) + ",\n")
-		buff.WriteString("\t};\n")
-		buff.WriteString("};\n\n")
+		prefix := messageName[0:2]
+		cut := strings.ToUpper(prefix)
+		if cut != "PB" {
+			buff.WriteString("template<>\n")
+			buff.WriteString("class MessageHelper<" + messageName + "> {\n")
+			buff.WriteString("public:\n")
+			buff.WriteString("\tenum  {\n")
+			buff.WriteString("\t\tId = " + "MsgId::MsgId_" + messageName + ",\n")
+			buff.WriteString("\t};\n")
+			buff.WriteString("};\n\n")
+		}
 	}
 	file.WriteString(buff.String())
 	return nil
@@ -323,16 +328,35 @@ func genMsgIdMap(messages []string) error {
 	return nil
 }
 
+func genPBMsgId(messages []string) error {
+	filename := *outputDir + "/" + "PBMsgId.proto"
+	file, err := os.Create(filename)
+	if nil != err {
+		return err
+	}
+	defer file.Close()
+	var buff bytes.Buffer
+	buff.WriteString("syntax = \"proto3\";\n")
+	buff.WriteString("option optimize_for = LITE_RUNTIME;\n")
+	buff.WriteString("enum MsgId {\n")
+	for id, message := range messages {
+		buff.WriteString("\tMsgId_" + message + " = " + strconv.Itoa(id) + ",\n")
+	}
+	buff.WriteString("}\n")
+	file.WriteString(buff.String())
+	return nil
+}
+
 func main() {
 	inputDir = flag.String("idir", "Proto", "idir path: input dir!")
 	outputDir = flag.String("odir", "AutoGen", "odir path: output dir!")
 	exportFlag = flag.String("export", "gs", "export flag: flag value gs for gameserver, ds for dataserver, sc for client")
 
 	flag.Parse()
-
+	/*
 	*inputDir = "F:\\project_modify\\server\\ClothesChange_Common\\proto\\input"
 	*outputDir = "F:\\project_modify\\server\\ClothesChange_Common\\proto\\out"
-
+	 */
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
 	if false == strings.Contains(*inputDir, dir) {
